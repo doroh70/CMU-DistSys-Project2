@@ -50,29 +50,29 @@ const kLogToStdout = true
 // Change this to output logs to a different directory
 const kLogOutputDir = "./raftlogs/"
 
-//
 // ApplyCommand
 // ========
 //
 // As each Raft peer becomes aware that successive log entries are
 // committed, the peer should send an ApplyCommand to the service (or
 // tester) on the same server, via the applyCh passed to NewPeer()
-//
 type ApplyCommand struct {
 	Index   int
 	Command interface{}
 }
 
-//
 // Raft struct
 // ===========
 //
 // A Go object implementing a single Raft peer
-//
 type Raft struct {
 	mux   sync.Mutex       // Lock to protect shared access to this peer's state
 	peers []*rpc.ClientEnd // RPC end points of all peers
 	me    int              // this peer's index into peers[]
+
+	//Persistent state
+	currentTerm int
+	votedFor    int
 	// You are expected to create reasonably clear log files before asking a
 	// debugging question on Piazza or OH. Use of this logger is optional, and
 	// you are free to remove it completely.
@@ -82,15 +82,20 @@ type Raft struct {
 	// Look at the Raft paper's Figure 2 for a description of what
 	// state a Raft peer should maintain
 
+	// Volatile state
+	lastApplied int
+	commitIndex int
+
+	// Volatile leader state
+	nextIndex  []int
+	matchIndex []int
 }
 
-//
 // GetState()
 // ==========
 //
 // Return "me", current term and whether this peer
 // believes it is the leader
-//
 func (rf *Raft) GetState() (int, int, bool) {
 	var me int
 	var term int
@@ -99,21 +104,18 @@ func (rf *Raft) GetState() (int, int, bool) {
 	return me, term, isleader
 }
 
-//
 // RequestVoteArgs
 // ===============
 //
-// Example RequestVote RPC arguments structure
+// # Example RequestVote RPC arguments structure
 //
 // Please note
 // ===========
 // Field names must start with capital letters!
-//
 type RequestVoteArgs struct {
 	// Your data here (3A, 3B)
 }
 
-//
 // RequestVoteReply
 // ================
 //
@@ -122,27 +124,23 @@ type RequestVoteArgs struct {
 // Please note
 // ===========
 // Field names must start with capital letters!
-//
-//
 type RequestVoteReply struct {
 	// Your data here (3A)
 }
 
-//
 // RequestVote
 // ===========
 //
 // Example RequestVote RPC handler
-//
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (3A, 3B)
+	// inspect args and check if we can vote for server
 }
 
-//
 // sendRequestVote
 // ===============
 //
-// Example code to send a RequestVote RPC to a server
+// # Example code to send a RequestVote RPC to a server
 //
 // server int -- index of the target server in
 // rf.peers[]
@@ -158,12 +156,12 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 // The rpc package simulates a lossy network, in which servers
 // may be unreachable, and in which requests and replies may be lost
 //
-// Call() sends a request and waits for a reply
+// # Call() sends a request and waits for a reply
 //
 // If a reply arrives within a timeout interval, Call() returns true;
 // otherwise Call() returns false
 //
-// Thus Call() may not return for a while
+// # Thus Call() may not return for a while
 //
 // A false return can be caused by a dead server, a live server that
 // can't be reached, a lost request, or a lost reply
@@ -181,22 +179,42 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 // capitalized all field names in the struct passed over RPC, and
 // that the caller passes the address of the reply struct with "&",
 // not the struct itself
-//
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
 	return ok
 }
 
+type AppendEntriesArgs struct {
+	// Your data here (3A, 3B)
+}
+
+type AppendEntriesReply struct {
+	// Your data here (3A, 3B)
+}
+
+// AppendEntries
+// ===========
 //
+// AppendEntries RPC handler
+func (rf *Raft) AppendEntries(args *AppendEntriesReply, reply *AppendEntriesReply) {
+	// Your code here (3A, 3B)
+	// inspect args and check if we can vote for server
+}
+
+func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+	return ok
+}
+
 // PutCommand
 // =====
 //
 // The service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log
 //
-// If this server is not the leader, return false
+// # If this server is not the leader, return false
 //
-// Otherwise start the agreement and return immediately
+// # Otherwise start the agreement and return immediately
 //
 // There is no guarantee that this command will ever be committed to
 // the Raft log, since the leader may fail or lose an election
@@ -204,11 +222,10 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 // The first return value is the index that the command will appear at
 // if it is ever committed
 //
-// The second return value is the current term
+// # The second return value is the current term
 //
 // The third return value is true if this server believes it is
 // the leader
-//
 func (rf *Raft) PutCommand(command interface{}) (int, int, bool) {
 	index := -1
 	term := -1
@@ -219,7 +236,6 @@ func (rf *Raft) PutCommand(command interface{}) (int, int, bool) {
 	return index, term, isLeader
 }
 
-//
 // Stop
 // ====
 //
@@ -229,16 +245,14 @@ func (rf *Raft) PutCommand(command interface{}) (int, int, bool) {
 // You are not required to do anything
 // in Stop(), but it might be convenient to (for example)
 // turn off debug output from this instance
-//
 func (rf *Raft) Stop() {
 	// Your code here, if desired
 }
 
-//
 // NewPeer
 // ====
 //
-// The service or tester wants to create a Raft server
+// # The service or tester wants to create a Raft server
 //
 // The port numbers of all the Raft servers (including this one)
 // are in peers[]
@@ -255,7 +269,6 @@ func (rf *Raft) Stop() {
 //
 // NewPeer() must return quickly, so it should start Goroutines
 // for any long-running work
-//
 func NewPeer(peers []*rpc.ClientEnd, me int, applyCh chan ApplyCommand) *Raft {
 	rf := &Raft{}
 	rf.peers = peers
