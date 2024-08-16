@@ -70,6 +70,8 @@ type Raft struct {
 	peers []*rpc.ClientEnd // RPC end points of all peers
 	me    int              // this peer's index into peers[]
 
+	currentState NodeState // whether candidate, follower or leader
+
 	//Persistent state
 	currentTerm int
 	votedFor    int
@@ -133,8 +135,7 @@ type RequestVoteReply struct {
 //
 // Example RequestVote RPC handler
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (3A, 3B)
-	// inspect args and check if we can vote for server
+	rf.currentState.RequestVote(args, reply)
 }
 
 // sendRequestVote
@@ -197,8 +198,7 @@ type AppendEntriesReply struct {
 //
 // AppendEntries RPC handler
 func (rf *Raft) AppendEntries(args *AppendEntriesReply, reply *AppendEntriesReply) {
-	// Your code here (3A, 3B)
-	// inspect args and check if we can vote for server
+	rf.currentState.AppendEntries(args, reply)
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
@@ -298,4 +298,8 @@ func NewPeer(peers []*rpc.ClientEnd, me int, applyCh chan ApplyCommand) *Raft {
 	// Your initialization code here (3A, 3B)
 
 	return rf
+}
+
+func (rf *Raft) changeState(newState NodeState) {
+	rf.currentState = newState
 }
