@@ -32,12 +32,13 @@ package raft
 
 import (
 	"fmt"
+	"github.com/cmu440/rpc"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"sync"
-
-	"github.com/cmu440/rpc"
+	"time"
 )
 
 // Set to false to disable debug logs completely
@@ -49,6 +50,9 @@ const kLogToStdout = true
 
 // Change this to output logs to a different directory
 const kLogOutputDir = "./raftlogs/"
+
+const maxTimeOut = 3000
+const minTimeOut = 1500
 
 // ApplyCommand
 // ========
@@ -69,6 +73,10 @@ type Raft struct {
 	mux   sync.Mutex       // Lock to protect shared access to this peer's state
 	peers []*rpc.ClientEnd // RPC end points of all peers
 	me    int              // this peer's index into peers[]
+
+	followerState  NodeState
+	candidateState NodeState
+	leaderState    NodeState
 
 	currentState NodeState // whether candidate, follower or leader
 
@@ -297,9 +305,45 @@ func NewPeer(peers []*rpc.ClientEnd, me int, applyCh chan ApplyCommand) *Raft {
 
 	// Your initialization code here (3A, 3B)
 
+	//Initialize states
+	rf.followerState = &FollowerState{
+		raftNode: rf,
+	}
+
+	rf.candidateState = &CandidateState{
+		raftNode: rf,
+	}
+
+	rf.leaderState = &LeaderState{
+		raftNode: rf,
+	}
+
+	rf.setState(rf.followerState)
+
+	go rf.epochRoutine()
 	return rf
 }
 
-func (rf *Raft) changeState(newState NodeState) {
+func (rf *Raft) setState(newState NodeState) {
 	rf.currentState = newState
+}
+
+// e.g. called after AppendEntries RPC received
+func (rf *Raft) resetTimer() {
+}
+
+// e.g. called after election timeout elapses without receiving AppendEntries
+// RPC from current leader or granting vote to candidate
+func (rf *Raft) epochRoutine() {
+	// Then further call EpochHandler() method per state, as they handle timeout behaviour differently
+
+	electionTimeOut := rand.Intn(maxTimeOut-minTimeOut) + minTimeOut
+
+	heartBeatInterval := electionTimeOut / 10
+
+	for {
+		time.Sleep(time.Millisecond * time.Duration(heartBeatInterval))
+		rf.currentState.EpochHandler()
+	}
+
 }
