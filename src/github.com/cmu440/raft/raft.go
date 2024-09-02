@@ -54,6 +54,8 @@ const kLogOutputDir = "./raftlogs/"
 const maxTimeOut = 3000
 const minTimeOut = 1500
 
+const numEpochs = 10
+
 // ApplyCommand
 // ========
 //
@@ -99,6 +101,10 @@ type Raft struct {
 	// Volatile leader state
 	nextIndex  []int
 	matchIndex []int
+
+	electionTimeOut int
+
+	numHeartBeats int
 }
 
 // GetState()
@@ -320,7 +326,9 @@ func NewPeer(peers []*rpc.ClientEnd, me int, applyCh chan ApplyCommand) *Raft {
 
 	rf.setState(rf.followerState)
 
-	go rf.epochRoutine()
+	rf.electionTimeOut = rand.Intn(maxTimeOut-minTimeOut) + minTimeOut
+
+	go rf.heartBeatRoutine()
 	return rf
 }
 
@@ -330,20 +338,23 @@ func (rf *Raft) setState(newState NodeState) {
 
 // e.g. called after AppendEntries RPC received
 func (rf *Raft) resetTimer() {
+	rf.mux.Lock()
+	rf.numHeartBeats = 0
+	rf.mux.Unlock()
 }
 
 // e.g. called after election timeout elapses without receiving AppendEntries
 // RPC from current leader or granting vote to candidate
-func (rf *Raft) epochRoutine() {
-	// Then further call EpochHandler() method per state, as they handle timeout behaviour differently
+func (rf *Raft) heartBeatRoutine() {
+	heartBeatInterval := rf.electionTimeOut / numEpochs
 
-	electionTimeOut := rand.Intn(maxTimeOut-minTimeOut) + minTimeOut
-
-	heartBeatInterval := electionTimeOut / 10
-
+	// use 2pl strategy?
 	for {
 		time.Sleep(time.Millisecond * time.Duration(heartBeatInterval))
-		rf.currentState.EpochHandler()
+		rf.mux.Lock()
+		rf.numHeartBeats++
+		rf.currentState.HeartBeatHandler()
+		rf.mux.Unlock()
 	}
 
 }

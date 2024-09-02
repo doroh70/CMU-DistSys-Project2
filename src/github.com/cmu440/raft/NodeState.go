@@ -6,7 +6,7 @@ type NodeState interface {
 
 	AppendEntries(args *AppendEntriesReply, reply *AppendEntriesReply)
 
-	EpochHandler()
+	HeartBeatHandler()
 }
 
 // FollowerState contains the Raft follower state implementation
@@ -22,7 +22,7 @@ func (state *FollowerState) AppendEntries(args *AppendEntriesReply, reply *Appen
 
 }
 
-func (state *FollowerState) EpochHandler() {}
+func (state *FollowerState) HeartBeatHandler() {}
 
 // CandidateState contains the Raft candidate state implementation
 type CandidateState struct {
@@ -37,7 +37,7 @@ func (state *CandidateState) AppendEntries(args *AppendEntriesReply, reply *Appe
 
 }
 
-func (state *CandidateState) EpochHandler() {}
+func (state *CandidateState) HeartBeatHandler() {}
 
 // LeaderState contains the Raft leader state implementation
 type LeaderState struct {
@@ -52,4 +52,4 @@ func (state *LeaderState) AppendEntries(args *AppendEntriesReply, reply *AppendE
 
 }
 
-func (state *LeaderState) EpochHandler() {}
+func (state *LeaderState) HeartBeatHandler() {}
